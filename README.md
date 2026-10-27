@@ -12,10 +12,26 @@ bike-hub 通过 IMU、霍尔、GNSS 等传感器识别车辆被动手脚的意�
 | --- | --- |
 | 需求整理（v0.2，DIY 版） | ✅ 完成 |
 | 原型实施方案 | ✅ 完成 |
-| P0 打通链路（面包板 demo） | ⬜ 未开始 |
+| P0 打通链路（面包板 demo） | 🟡 骨架就绪，待硬件 |
 | P1 数据采集与判定 | ⬜ 未开始 |
 | P2 4G / 音频 / GNSS | ⬜ 未开始 |
 | P3 装车长测 | ⬜ 未开始 |
+
+## 项目结构
+
+```
+bike-hub/
+├── firmware/       ESP32-S3 固件（PlatformIO / Arduino）
+│   ├── src/        应用层：调度、状态机
+│   ├── lib/        模块：sensor / detect / audio / net / power
+│   └── data/       LittleFS：WAV 音频、index.json
+├── tools/          开发期脚本（模拟设备、数据分析）
+├── hardware/       OpenSCAD 参数化外壳
+├── docs/           需求、方案、BOM
+└── data/           采集数据与录音素材（不入库）
+```
+
+四套代码，按部署目标划分：固件跑在芯片上、面板跑在 Node-RED、脚本跑在电脑、外壳跑在 3D 软件。**第二曲线的码表是 `firmware/lib/` 里加一个模块，不是新工程。**
 
 ## 文档
 
@@ -36,16 +52,17 @@ bike-hub 通过 IMU、霍尔、GNSS 等传感器识别车辆被动手脚的意�
 
 ## 环境
 
-当前机器（WSL2）已具备 Node 24 与 Python 3.12；PlatformIO、Docker、mosquitto 尚未安装。建议：
+开发全在 WSL2 内完成。当前已就绪：`git`、`gh`（已登录）、`python3`、`node`、`PlatformIO 6.2.0`。
 
 ```bash
-pip install platformio          # 固件
-npm install -g node-red         # 手机端面板（不写 App）
-sudo apt install mosquitto      # 本地 MQTT broker
+./scripts/doctor.sh      # 在 dev-space 根目录跑，检查环境
 ```
+
+尚未安装：`mosquitto`（本地 MQTT broker）、`node-red`（手机端面板）。这两项等到做云端时再补。
 
 ## 下一步
 
-1. 下单硬件（ESP32-S3-DevKitC-1 + 带电平转换的 Air780EG 转接板 + LIS3DH + MAX98357A + 18650×2，约 ¥260）。
-2. 写第一个 demo：IMU 50 Hz 采样 → 串口波形。
-3. 按 [prototype-plan 的里程碑](docs/prototype-plan.md#11-里程碑8-10-周) 推进。
+1. **硬件到货前**：确认固件能编译、能烧录、串口能打出心跳（无需外设）。
+2. **LIS3DH 到货后**：I2C 扫描 → WHO_AM_I 校验 → 50 Hz 采样 → 串口 CSV。
+3. **采样跑通后**：按 A–E 五类动作采集数据，用 `tools/analyze.py` 定阈值。
+4. 全程按 [prototype-plan 的里程碑](docs/prototype-plan.md#11-里程碑8-10-周) 推进。
