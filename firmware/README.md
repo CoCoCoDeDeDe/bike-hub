@@ -1,6 +1,6 @@
 # firmware
 
-ESP32-S3 固件工程。当前是骨架版本：能编译、能烧录、串口打印启动信息和心跳。
+ESP32-S3 固件工程。当前已接入 LIS3DH：启动自检、50 Hz 连续采样、串口 CSV 输出。
 
 ## 快速开始
 
@@ -49,6 +49,47 @@ pio run -e s3-usb -t upload && pio device monitor -e s3-usb
 [beat] up=2s  heap=380000  psram=8388608  min_heap=378000
 ```
 
+## LIS3DH 接线
+
+| LIS3DH | ESP32-S3 | 说明 |
+| --- | --- | --- |
+| VCC | 3V3 | 不要接 5V |
+| GND | GND | |
+| SDA | GPIO8 | 可在 `src/config.h` 改 |
+| SCL | GPIO9 | 可在 `src/config.h` 改 |
+| SA0 | GND | 决定地址：接地 0x18，接 VCC 0x19 |
+| INT1 | 暂不接 | 后续低功耗唤醒用 |
+
+模块上的 `SA0` 有的做成焊盘、有的引出排针。**驱动会自动探测 0x18 和 0x19**，接错也能识别，不影响。
+
+## 串口输出格式
+
+启动信息是普通文本，之后是 CSV 流，心跳以 `#` 开头（可当注释跳过）：
+
+```
+[imu] 扫描 I2C 总线…
+       发现设备 0x18
+[imu] 就绪  地址 0x18  WHO_AM_I 0x33
+[imu] 量程 ±4g  灵敏度 2.0 mg/LSB  采样 50 Hz
+
+# bike-hub imu stream — 断电结束
+# t_ms,ax_mg,ay_mg,az_mg
+1024,12,-3,998
+1044,15,-2,1001
+1064,9,-5,996
+# [beat] up=5s heap=380000  min=378000  drop=0
+```
+
+Python 读取：
+
+```python
+df = pd.read_csv("imu.csv", comment="#", names=["t","ax","ay","az"])
+```
+
+## 为什么是 ±4 g
+
+撬锁的冲击经常超过 2 g，±2 g 会削顶——波形顶部被切平，特征就毁了。±4 g 配 12 bit，灵敏度 2 mg/LSB，日常振动完全够用。
+
 ## 目录约定
 
 ```
@@ -64,7 +105,7 @@ firmware/
 
 ## 还没做的
 
-- [ ] IMU（LIS3DH）采样与 CSV 输出
+- [x] IMU（LIS3DH）采样与 CSV 输出
 - [ ] 车轮霍尔计数
 - [ ] Air780EG 的 AT 通道与 GNSS 通道
 - [ ] I2S 音频播放
