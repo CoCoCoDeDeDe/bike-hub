@@ -645,10 +645,12 @@ difference() {
 
 ## 14. 下一步
 
-按优先级，**这周就能开始的三件事**：
+具体待办与解锁条件见 [项目待办](todo.md)，采购批次见 [BOM 清单](bom.md)。
 
-1. **下单**：ESP32-S3-DevKitC-1 (N16R8)、带电平转换的 Air780EG 转接板、LIS3DH、MAX98357A + 喇叭、18650×2 + TP4056、物联网卡。——约 ¥260，一周到货。
-2. **装环境**：`pip install platformio`、`npm i -g node-red`、`apt install mosquitto`。三个都能在你现在的 WSL2 里跑。
-3. **写第一个 demo**：IMU 50 Hz 采样 → 串口打印 → 挥手看波形。**先让你的手"看见"加速度，再谈判定。**
+起步的三件事仍然是：
+
+1. **下单第一批**（约 ¥54）：LIS3DH ×2、杜邦线、面包板、洞洞板。主控已有。
+2. **装环境**：`pip install platformio`、`npm i -g node-red`、`apt install mosquitto`。三个都能在 WSL2 里跑。
+3. **写第一个 demo**：IMU 50 Hz 采样 → 串口 CSV → 挥手看波形。
 
 > 顺序很重要：**先能看见数据，再能判断数据，最后才谈联网和外壳。** 大多数人反过来做，结果做了一个漂亮的壳子，里面判断不准。
