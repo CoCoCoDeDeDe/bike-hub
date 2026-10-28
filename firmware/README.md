@@ -97,6 +97,7 @@ firmware/
 ├── include/config.h      引脚、调度周期、Mock 开关
 ├── mock/Arduino.h        native 测试用的 Arduino 桩
 ├── test/test_guard/      状态机单元测试
+├── test/test_protocol/   消息编解码单元测试
 ├── src/main.cpp          初始化 + 调度 + 事件播报
 └── lib/
     ├── lis3dh/           加速度计
@@ -104,7 +105,8 @@ firmware/
     ├── light/            车灯 PWM + ID 识别
     ├── guard/            防盗状态机
     ├── alarm/            喇叭播放
-    └── power/            电量
+    ├── power/            电量
+    └── protocol/         MQTT 消息编解码（纯逻辑，可 native 测）
 ```
 
 **规矩**：`main.cpp` 只做初始化和时间调度，业务判断全在 `lib/` 里。`guard` 消费 `lock` 的状态，`lock` 不反过来依赖 `guard`。
@@ -250,6 +252,8 @@ static void advance(uint32_t ms) { mock_millis_ref() += ms; }
 ```
 
 新增状态机时，照着 `test/test_guard/` 的结构写用例即可。
+
+`test_protocol` 验证 MQTT 消息的编解码，协议定义见 [docs/protocol.md](../docs/protocol.md)。这一层不碰网络也不碰硬件，所以能在电脑上完整测。
 
 ## 目录约定
 
