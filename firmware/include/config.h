@@ -67,7 +67,15 @@
 #define AUDIO_SAMPLE_HZ  16000
 #define ALARM_TICK_MS    10
 
-// ---------------------------------------------------------------- 预留
-// #define PIN_IMU_INT1    3     // LIS3DH INT1，硬件唤醒用
-// #define PIN_HALL_WHEEL  11    // 车轮霍尔
-// #define PIN_AMP_SD      12    // MAX98357A 使能
+// ---------------------------------------------------------------- 预留：唤醒
+// #define PIN_IMU_INT1    3     // LIS3DH INT1，低功耗中断唤醒
+
+// ---------------------------------------------------------------- 预留：码表 / 轮速
+//
+// 码表功能暂搁置（需求未定），但硬件和代码结构都留了接入点。
+// 打开方式见 firmware/README.md「未来扩展点」。
+//
+// #define PIN_HALL_WHEEL   11    // 车轮霍尔，必须在 GPIO0–21 内（RTC，可深睡唤醒）
+// #define WHEEL_CIRC_MM    2146  // 轮周长：700×25c ≈ 2146，700×28c ≈ 2155
+// #define WHEEL_DEBOUNCE_MS 30   // 脉冲去抖窗口（30 ms 约合 250 km/h，正常骑行不可能更快）
+// #define WHEEL_STOP_MS    2000  // 超过这么久没脉冲判定为停止
