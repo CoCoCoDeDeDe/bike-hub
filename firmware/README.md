@@ -297,6 +297,8 @@ firmware/
 - [ ] Air780EG 的 AT 通道与 GNSS 通道
 - [ ] 低功耗调度
 
+完整待办（含依赖关系与解锁条件）见 [docs/todo.md](../docs/todo.md)。
+
 ## 未来扩展点
 
 ### 码表 / 轮速
