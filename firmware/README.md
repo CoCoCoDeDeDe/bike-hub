@@ -103,6 +103,7 @@ firmware/
     ├── lock/             锁舌状态 + 电机 + 防拆
     ├── light/            车灯 PWM + ID 识别
     ├── guard/            防盗状态机
+    ├── alarm/            喇叭播放
     └── power/            电量
 ```
 
@@ -168,6 +169,62 @@ INIT ──锁上──▶ ARMED ──持续振动 1.5s──▶ ALARM
 
 只有 `lock` 能改变布防/撤防。**没有按钮、没有手机指令能直接撤防**——这条在代码结构上就定死了。
 
+## 任务表
+
+所有周期任务都由一张表驱动，加模块只加一行：
+
+```cpp
+static LoopTask g_tasks[] = {
+    { "imu",   tick_imu,     IMU_SAMPLE_MS },
+    { "lock",  tick_lock_t,  LOCK_TICK_MS  },
+    { "guard", tick_guard_t, GUARD_TICK_MS },
+    { "alarm", tick_alarm_t, ALARM_TICK_MS },
+    ...
+};
+```
+
+调度器顺带统计每个任务的最大耗时，超过 5 ms 会在心跳里报警：
+
+```
+# [slow] alarm 单次耗时 7321 us，已超过 5 ms
+```
+
+这样就提前拿到了"哪个任务在拖后腿"的证据。**将来搬上 FreeRTOS，每个表项直接变成一个任务。**
+
+## 喇叭
+
+播放 LittleFS 里的 `/a1.wav` … `/a9.wav`，支持循环。
+
+**音频格式必须统一**：16 kHz / 16 bit / 单声道 PCM WAV。
+
+```bash
+ffmpeg -i in.mp3 -ar 16000 -ac 1 -sample_fmt s16 -t 8 a1.wav
+```
+
+烧录音频到设备：
+
+```bash
+pio run -t uploadfs      # 把 data/ 目录内容写进 LittleFS
+```
+
+把 `a1.wav` 等放进 `firmware/data/` 再执行。
+
+测试播放：
+
+```
+> play 1
+[alarm] PLAY id=1 loop=0
+（3 秒后）
+[alarm] STOP id=0
+```
+
+> 播放是**流式**的：每 10 ms 从文件读 512 字节喂给 I2S，不会一口气阻塞几秒。
+> 报警时 IMU 采样和状态机照常运行。
+
+### 循环播放与告警联动
+
+`guard` 进入 ALARM 时自动 `play(1, true)`，离开时 `stop()`。所以只要有人碰车，喇叭会一直响到状态解除。
+
 ## 单元测试
 
 状态机逻辑在电脑上就能跑，不需要板子：
@@ -214,7 +271,7 @@ firmware/
 - [x] 车灯接口（Mock，PWM 已实现）
 - [x] 防盗状态机（lock → guard）
 - [ ] 车轮霍尔计数
-- [ ] 喇叭播放与告警音
+- [x] 喇叭播放与告警音
 - [ ] Air780EG 的 AT 通道与 GNSS 通道
 - [ ] I2S 音频播放
 - [ ] 低功耗调度

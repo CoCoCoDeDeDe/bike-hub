@@ -8,10 +8,20 @@
  */
 
 // ---------------------------------------------------------------- 编译开关
-// 1 = 用串口命令模拟，0 = 走真实 GPIO
+// 1 = 用串口命令模拟，0 = 走真实硬件
+// 用 #ifndef 包裹，方便命令行 -DMOCK_XXX=0 做编译验证
+#ifndef MOCK_LOCK
 #define MOCK_LOCK   1
+#endif
+#ifndef MOCK_LIGHT
 #define MOCK_LIGHT  1
+#endif
+#ifndef MOCK_POWER
 #define MOCK_POWER  1
+#endif
+#ifndef MOCK_ALARM
+#define MOCK_ALARM  1
+#endif
 
 // ---------------------------------------------------------------- I2C（LIS3DH）
 #define PIN_I2C_SDA     8
@@ -48,6 +58,14 @@
 #define MOTION_RMS_G          0.05f   // 超过算"在动"
 #define MOTION_HOLD_MS        1500    // 持续这么久才算事件
 #define ALARM_COOLDOWN_MS     10000   // 告警后静默，避免刷屏
+
+// ---------------------------------------------------------------- 喇叭（MAX98357A）
+#define PIN_I2S_BCLK     15
+#define PIN_I2S_LRC      16
+#define PIN_I2S_DIN      17
+#define PIN_AMP_SD       18    // 功放使能，低 = 关断
+#define AUDIO_SAMPLE_HZ  16000
+#define ALARM_TICK_MS    10
 
 // ---------------------------------------------------------------- 预留
 // #define PIN_IMU_INT1    3     // LIS3DH INT1，硬件唤醒用

@@ -21,6 +21,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "alarm.h"
 #include "config.h"
 #include "guard.h"
 #include "light.h"
@@ -31,6 +32,7 @@
 #define FW_VERSION "0.3.0"
 
 static Lis3dh g_imu;
+static Alarm  g_alarm;
 static Lock   g_lock;
 static Light  g_light;
 static Guard  g_guard;
@@ -39,7 +41,6 @@ static Power  g_power;
 // ---------------------------------------------------------------- 调度状态
 
 static uint32_t g_boot_ms = 0;
-static uint32_t t_imu = 0, t_lock = 0, t_light = 0, t_power = 0, t_beat = 0, t_guard = 0;
 
 // ---------------------------------------------------------------- 运动强度
 
@@ -75,8 +76,14 @@ static bool g_stream = false;
 // guard 状态变化时由它回调，main 只负责"把动作分发到执行器"
 static void on_guard_action(GuardState s) {
     switch (s) {
-        case GuardState::ALARM: g_light.setMode(LightMode::ALERT); break;
-        default:                g_light.setMode(LightMode::OFF);   break;
+        case GuardState::ALARM:
+            g_light.setMode(LightMode::ALERT);
+            g_alarm.play(1, true);          // 循环播放 1 号警笛
+            break;
+        default:
+            g_light.setMode(LightMode::OFF);
+            g_alarm.stop();
+            break;
     }
 }
 
@@ -150,17 +157,19 @@ static void init_imu() {
 // ---------------------------------------------------------------- 串口命令
 
 static void print_status() {
-    Serial.printf("[status] lock=%s guard=%s rms=%.3fg batt=%.2fV/%u%% light=%s/%s\n",
+    Serial.printf("[status] lock=%s guard=%s rms=%.3fg batt=%.2fV/%u%% light=%s/%s alarm=%s\n",
                   Lock::name(g_lock.state()),
                   Guard::name(g_guard.state()),
                   g_rms,
                   g_power.voltage(), g_power.percent(),
-                  Light::name(g_light.mode()), Light::name(g_light.status()));
+                  Light::name(g_light.mode()), Light::name(g_light.status()),
+                  Alarm::name(g_alarm.state()));
 }
 
 static void print_help() {
     Serial.println("[cmd] lock | unlock | tamper | clear");
     Serial.println("[cmd] light off|on|alert");
+    Serial.println("[cmd] play 1-9 | stop");
     Serial.println("[cmd] stream on|off");
     Serial.println("[cmd] status | help");
 }
@@ -183,6 +192,15 @@ static void handle_cmd(char *line) {
         g_light.setMode(LightMode::ON);
     } else if (strcmp(line, "light alert") == 0) {
         g_light.setMode(LightMode::ALERT);
+    } else if (strncmp(line, "play ", 5) == 0) {
+        const int id = atoi(line + 5);
+        if (id < 1 || id > 9) {
+            Serial.println("[cmd] 编号范围 1-9");
+        } else {
+            g_alarm.play((uint8_t)id, false);
+        }
+    } else if (strcmp(line, "stop") == 0) {
+        g_alarm.stop();
     } else if (strcmp(line, "stream on") == 0) {
         g_stream = true;
         Serial.println("# t_ms,ax_mg,ay_mg,az_mg");
@@ -219,9 +237,6 @@ static void poll_serial() {
 
 static void tick_imu() {
     const uint32_t now = millis();
-    if ((int32_t)(now - t_imu) < 0) return;
-    t_imu = now + IMU_SAMPLE_MS;
-
     if (!g_imu.ready() || !g_imu.dataReady()) return;
 
     int16_t x = 0, y = 0, z = 0;
@@ -238,6 +253,75 @@ static void tick_imu() {
     }
 }
 
+// ---------------------------------------------------------------- 任务与调度
+
+struct LoopTask {
+    const char *name;
+    void (*fn)();
+    uint32_t period_ms;
+    uint32_t next_ms;
+    uint32_t max_us;
+};
+
+static void tick_beat_t();   // 定义在任务表之后（要遍历 g_tasks）
+
+static void tick_lock_t()  { g_lock.tick(); }
+static void tick_light_t() { g_light.tick(); }
+static void tick_power_t() { g_power.tick(); }
+static void tick_alarm_t() { g_alarm.tick(); }
+static void tick_guard_t() { g_guard.tick({ g_lock.state(), g_lock.tampered(), g_rms }); }
+
+// 一张表管住所有周期任务。将来搬上 FreeRTOS，每个表项直接变成一个任务。
+static LoopTask g_tasks[] = {
+    { "imu",   tick_imu,     IMU_SAMPLE_MS, 0, 0 },
+    { "lock",  tick_lock_t,  LOCK_TICK_MS,  0, 0 },
+    { "guard", tick_guard_t, GUARD_TICK_MS, 0, 0 },
+    { "alarm", tick_alarm_t, ALARM_TICK_MS, 0, 0 },
+    { "light", tick_light_t, LIGHT_TICK_MS, 0, 0 },
+    { "power", tick_power_t, POWER_TICK_MS, 0, 0 },
+    { "beat",  tick_beat_t,  HEARTBEAT_MS,  0, 0 },
+};
+
+static const size_t TASK_COUNT = sizeof(g_tasks) / sizeof(g_tasks[0]);
+
+static void scheduler_run() {
+    const uint32_t now = millis();
+    for (size_t i = 0; i < TASK_COUNT; i++) {
+        LoopTask &t = g_tasks[i];
+        if ((int32_t)(now - t.next_ms) < 0) continue;
+        t.next_ms = now + t.period_ms;
+
+        const uint32_t t0 = micros();
+        t.fn();
+        const uint32_t dt = micros() - t0;
+        if (dt > t.max_us) t.max_us = dt;
+    }
+}
+
+static void tick_beat_t() {
+    const uint32_t now = millis();
+    Serial.printf("# [beat] up=%lus heap=%lu guard=%s batt=%u%%\n",
+                  (unsigned long)((now - g_boot_ms) / 1000),
+                  (unsigned long)ESP.getFreeHeap(),
+                  Guard::name(g_guard.state()),
+                  g_power.percent());
+
+    // 报告本周期内最慢的一次 tick，方便发现卡顿
+    uint32_t worst = 0;
+    const char *worst_name = "-";
+    for (size_t i = 0; i < TASK_COUNT; i++) {
+        if (g_tasks[i].max_us > worst) {
+            worst = g_tasks[i].max_us;
+            worst_name = g_tasks[i].name;
+        }
+        g_tasks[i].max_us = 0;
+    }
+    if (worst > 5000) {
+        Serial.printf("# [slow] %s 单次耗时 %lu us，已超过 5 ms\n",
+                      worst_name, (unsigned long)worst);
+    }
+}
+
 // ---------------------------------------------------------------- 生命周期
 
 void setup() {
@@ -245,7 +329,7 @@ void setup() {
     delay(500);
 
     g_boot_ms = millis();
-    t_imu = t_lock = t_light = t_power = t_beat = t_guard = g_boot_ms;
+    for (auto &t : g_tasks) t.next_ms = g_boot_ms;
 
     print_banner();
     print_chip_info();
@@ -254,6 +338,7 @@ void setup() {
     init_imu();
     g_lock.begin();
     g_light.begin();
+    g_alarm.begin();
     g_guard.begin();
 
     g_guard.setActionHandler(on_guard_action);
@@ -268,39 +353,7 @@ void setup() {
 }
 
 void loop() {
-    const uint32_t now = millis();
-
     poll_serial();
-    tick_imu();
-
-    if ((int32_t)(now - t_lock) >= 0) {
-        t_lock = now + LOCK_TICK_MS;
-        g_lock.tick();
-    }
-
-    if ((int32_t)(now - t_light) >= 0) {
-        t_light = now + LIGHT_TICK_MS;
-        g_light.tick();
-    }
-
-    if ((int32_t)(now - t_power) >= 0) {
-        t_power = now + POWER_TICK_MS;
-        g_power.tick();
-    }
-
-    if ((int32_t)(now - t_guard) >= 0) {
-        t_guard = now + GUARD_TICK_MS;
-        g_guard.tick({ g_lock.state(), g_lock.tampered(), g_rms });
-    }
-
-    if ((int32_t)(now - t_beat) >= 0) {
-        t_beat = now + HEARTBEAT_MS;
-        Serial.printf("# [beat] up=%lus heap=%lu guard=%s batt=%u%%\n",
-                      (unsigned long)((now - g_boot_ms) / 1000),
-                      (unsigned long)ESP.getFreeHeap(),
-                      Guard::name(g_guard.state()),
-                      g_power.percent());
-    }
-
-    delay(1);
+    scheduler_run();
+    delay(1);   // 让出 CPU；以后换 xTaskDelayUntil 就是一行的事
 }
