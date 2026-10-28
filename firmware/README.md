@@ -199,13 +199,53 @@ static LoopTask g_tasks[] = {
 
 播放 LittleFS 里的 `/a1.wav` … `/a9.wav`，支持循环。
 
-**音频格式必须统一**：16 kHz / 16 bit / 单声道 PCM WAV。
+**音频格式必须统一**：16 kHz / 16 bit / 单声道 PCM WAV，**44 字节标准头**。
+`alarm.cpp` 固定跳过前 44 字节直接送数据，头部长度不对会吃掉音频开头。
+
+### 生成合成音
+
+`tools/make_audio.py` 只用 Python 标准库（不需要 ffmpeg）生成四段合成音：
 
 ```bash
-ffmpeg -i in.mp3 -ar 16000 -ac 1 -sample_fmt s16 -t 8 a1.wav
+python3 tools/make_audio.py            # 写到 firmware/data/
+python3 tools/make_audio.py --list     # 只看清单
 ```
 
-烧录音频到设备：
+| 编号 | 内容 | 时长 | 循环 |
+| --- | --- | --- | --- |
+| a1 | 警笛-标准（600–1200 Hz 正弦摆动，8 s 恰两个周期） | 8.0 s | 是 |
+| a2 | 警笛-急促（800/1200 Hz 交替） | 4.0 s | 是 |
+| a3 | 脉冲报警（1000 Hz 短 beep） | 6.0 s | 是 |
+| a4 | 提示音-寻车（两声上扬 chirp） | 0.9 s | 否 |
+
+同时生成 `data/index.json`（id / name / file / vol / loop / dur_ms），供云端与手机面板生成下拉框。
+
+循环段的首尾都做了淡入淡出，且 a1 的摆动周期是总时长的整数分之一，**循环播放没有接缝**。
+
+### 补语音段（a5–a9）
+
+合成音只到 a4，语音段落要自己准备。任选一种：
+
+```bash
+# 1) 用现成音频转（需要 ffmpeg）
+ffmpeg -i in.mp3 -ar 16000 -ac 1 -sample_fmt s16 -t 6 data/a5.wav
+
+# 2) 手机录音后转（同上）
+
+# 3) 用 edge-tts 生成（需要 pip install edge-tts，联网）
+edge-tts --voice zh-CN-YunxiNeural --text "车辆已锁定，请勿移动" --write-media a5.mp3
+ffmpeg -i a5.mp3 -ar 16000 -ac 1 -sample_fmt s16 data/a5.wav
+```
+
+转完跑一遍校验，确认头部恰好 44 字节：
+
+```bash
+python3 -c "import sys,wave; p=sys.argv[1]; raw=open(p,'rb').read(); print(p, '头字节', raw.find(b'data')+8,       wave.open(p,'rb').getframerate(), 'Hz')" data/a5.wav
+```
+
+应输出 `头字节 44 16000 Hz`。若头字节不是 44，加 `-fflags +bitexact -flags +bitexact` 重转。
+
+### 烧录音频到设备
 
 ```bash
 pio run -t uploadfs      # 把 data/ 目录内容写进 LittleFS

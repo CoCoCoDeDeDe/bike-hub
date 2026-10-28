@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "name": "警笛-标准",
+    "file": "/a1.wav",
+    "vol": 90,
+    "loop": true,
+    "dur_ms": 8000
+  },
+  {
+    "id": 2,
+    "name": "警笛-急促",
+    "file": "/a2.wav",
+    "vol": 95,
+    "loop": true,
+    "dur_ms": 4000
+  },
+  {
+    "id": 3,
+    "name": "脉冲报警",
+    "file": "/a3.wav",
+    "vol": 88,
+    "loop": true,
+    "dur_ms": 6000
+  },
+  {
+    "id": 4,
+    "name": "提示音-寻车",
+    "file": "/a4.wav",
+    "vol": 70,
+    "loop": false,
+    "dur_ms": 900
+  },
+  {
+    "id": 5,
+    "name": "语音-已报警",
+    "file": "/a5.wav",
+    "vol": 85,
+    "loop": false,
+    "dur_ms": 0
+  },
+  {
+    "id": 6,
+    "name": "语音-请离开",
+    "file": "/a6.wav",
+    "vol": 85,
+    "loop": false,
+    "dur_ms": 0
+  },
+  {
+    "id": 7,
+    "name": "语音-已拍照",
+    "file": "/a7.wav",
+    "vol": 85,
+    "loop": false,
+    "dur_ms": 0
+  }
+]
