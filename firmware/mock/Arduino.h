@@ -59,6 +59,53 @@ inline void analogReadResolution(uint8_t) {}
 inline bool ledcAttach(uint8_t, uint32_t, uint8_t) { return true; }
 inline void ledcWrite(uint8_t, uint32_t) {}
 
+// ---------------------------------------------------------------- Client / Stream / Print
+// 签名按 ESP32 Arduino core 的 Client.h 抄，modem 模块要能 override。
+// 别在这里偷偷加默认实现——真实环境是纯虚的，加了会在 check-real 才炸。
+class Print {
+public:
+    virtual ~Print() = default;
+    virtual size_t write(uint8_t) = 0;
+    virtual size_t write(const uint8_t *buf, size_t size) {
+        size_t n = 0;
+        while (size--) n += write(*buf++);
+        return n;
+    }
+};
+
+class Stream : public Print {
+public:
+    virtual int available() = 0;
+    virtual int read() = 0;
+    virtual int read(uint8_t *buf, size_t size) = 0;
+    virtual int peek() = 0;
+    virtual void flush() {}
+};
+
+class IPAddress {
+public:
+    uint32_t v = 0;
+    uint8_t operator[](int i) const {
+        return static_cast<uint8_t>((v >> (24 - i * 8)) & 0xFF);
+    }
+};
+
+class Client : public Stream {
+public:
+    virtual int connect(IPAddress ip, uint16_t port) = 0;
+    virtual int connect(const char *host, uint16_t port) = 0;
+    virtual size_t write(uint8_t) = 0;
+    virtual size_t write(const uint8_t *buf, size_t size) = 0;
+    virtual int available() = 0;
+    virtual int read() = 0;
+    virtual int read(uint8_t *buf, size_t size) = 0;
+    virtual int peek() = 0;
+    virtual void flush() {}
+    virtual void stop() = 0;
+    virtual uint8_t connected() = 0;
+    virtual operator bool() = 0;
+};
+
 // ---------------------------------------------------------------- 复位原因
 enum esp_reset_reason_t {
     ESP_RST_UNKNOWN = 0, ESP_RST_POWERON, ESP_RST_EXT, ESP_RST_SW,

@@ -13,7 +13,7 @@
 | ID | 任务 | 缺什么 | 为什么必须等 | 解锁条件 |
 | --- | --- | --- | --- | --- |
 | S-01 | WiFi 版 MQTT 打通 | ESP32 开发板 | 要真机连 broker 才能验证收发 | 板子到手 |
-| S-02 | `lib/modem/` AT 指令驱动 | Air780EG | 响应格式与 URC 依赖具体固件版本 | 模组到手 |
+| S-02 | `lib/modem/` 接入主循环 | Air780EG | AT 状态机已写完并测过（26 用例），剩下 UART 引脚与真机联调 | 模组到手 + H-E-08 定引脚 |
 | S-03 | 音频烧录与试听 | 喇叭 + 电路 | LittleFS 写入和 I2S 出声都要实测 | 音频链路搭好 |
 | S-04 | 实机验证 `guard` 状态机 | 板子 + LIS3DH | 阈值要靠真实振动校准 | 传感器接到板子 |
 | S-05 | 影子模式跑一周 | 装车后的整机 | 需要真实停车场景 | 整机能用 |
@@ -50,6 +50,7 @@
 | S-13 | 音频素材：`tools/make_audio.py` 生成 a1–a4 + index.json | `firmware/tools/` |
 | S-10 | `tools/simulate_device.py` + `mqtt_lite.py` + `selftest.py`（27 项断言） | `tools/` |
 | S-11 | Home Assistant 接入：12 实体 + 5 脚本 + 5 自动化 + 手机面板 | `deploy/homeassistant/` |
+| S-02a | `lib/modem/` AT 状态机骨架 + 26 个用例（+IPD / CIPSEND / 超时） | `lib/modem/` |
 
 ---
 

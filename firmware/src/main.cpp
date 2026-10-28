@@ -29,6 +29,12 @@
 #include "lock.h"
 #include "power.h"
 
+// 传输层已就位（lib/modem/），但还没接进主循环 —— 要等 Air780EG 到手、
+// UART 引脚定下来（硬件任务 H-E-08）才能真连。
+// 这里 include 一次是有意的：让 check-real 环境把它的真实串口分支也编一遍，
+// 否则等接入那天才发现 HardwareSerial 用错了，又得从头查。
+#include "modem.h"
+
 #define FW_VERSION "0.3.0"
 
 static Lis3dh g_imu;

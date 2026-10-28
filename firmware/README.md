@@ -99,6 +99,7 @@ firmware/
 ├── test/test_guard/      状态机单元测试
 ├── test/test_protocol/   消息编解码单元测试
 ├── test/test_net/        网络状态机单元测试
+├── test/test_modem/      AT 状态机单元测试
 ├── src/main.cpp          初始化 + 调度 + 事件播报
 └── lib/
     ├── lis3dh/           加速度计
@@ -108,7 +109,8 @@ firmware/
     ├── alarm/            喇叭播放
     ├── power/            电量
     ├── protocol/         MQTT 消息编解码（纯逻辑）
-    └── net/              网络状态机与重连退避（纯逻辑）
+    ├── net/              网络状态机与重连退避（纯逻辑）
+    └── modem/            AT 透传 → Arduino Client（MQTT 传输层）
 ```
 
 **规矩**：`main.cpp` 只做初始化和时间调度，业务判断全在 `lib/` 里。`guard` 消费 `lock` 的状态，`lock` 不反过来依赖 `guard`。
@@ -297,6 +299,36 @@ static void advance(uint32_t ms) { mock_millis_ref() += ms; }
 
 `test_protocol` 验证 MQTT 消息的编解码，协议定义见 [docs/protocol.md](../docs/protocol.md)。
 `test_net` 验证连接状态机与退避——时间由输入注入，所以不用真的等 30 秒。
+`test_modem` 验证 AT 状态机（+IPD 解析、CIPSEND 握手），用假模组注入字节流。
+
+合计 **63 个用例**，`pio test -e native` 一次跑完。
+
+## 传输层：AT 透传伪装成 Client
+
+`lib/modem/` 把 Air780 的 AT 指令包装成 Arduino 的 `Client`，好让 PubSubClient 之类的 MQTT 库直接拿来用：
+
+```
+PubSubClient ──► Air780Client ──► AtStream ──► UART ──► 模组 ──► TCP
+```
+
+**为什么不用模组自带的 `AT+MQTTCONN`**：ESP32 侧能看每个字节、能自己控重连、换模组只改 AT 命令。理由见 [docs/prototype-plan.md §3.2](../docs/prototype-plan.md)。
+
+AT 交互不是 socket 语义，得做状态机：
+
+| 动作 | AT 往返 |
+| --- | --- |
+| `connect()` | `AT+CIPSTART="TCP","host",port` → `OK` → `CONNECT OK` |
+| `write()` | `AT+CIPSEND=n` → `>` → 发 n 字节 → `SEND OK` |
+| 接收 | 模组主动吐 `+IPD,<len>:<data>` |
+
+几个必须踩对的细节：
+
+- **`+IPD` 的两种格式**：`+IPD,<len>:` 和 `+IPD,<id>,<len>:`，不同固件都给
+- **数据段按长度算**，不能按行——payload 里可能有 `\r\n`
+- **`>` 后面那个空格**要吃掉，否则下一行变成 `" SEND OK"` 永远匹配不上
+- **接收环形缓冲满了丢最老的**，别卡死整条链路
+
+**状态**：骨架完成，26 个用例覆盖上述分支。**还没接进主循环** —— 要等 Air780EG 到手、UART 引脚定下来（硬件任务 H-E-08）。`main.cpp` 里有意的 `#include "modem.h"` 让 `check-real` 环境也编译它的真实串口分支。
 
 这两层都不碰网络也不碰硬件，能在电脑上完整测。
 
