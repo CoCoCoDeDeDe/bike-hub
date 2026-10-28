@@ -30,7 +30,6 @@
 
 | ID | 任务 | 产出 | 备注 |
 | --- | --- | --- | --- |
-| S-10 | `tools/simulate_device.py` | 模拟设备发 MQTT | 用协议格式造数据，先把云端链路跑通 |
 | S-11 | Node-RED 面板 | 状态卡片 + 地图 + 录音选择 | 依赖 S-10 的数据 |
 | S-12 | `tools/analyze.py` | 特征分布、箱线图、阈值整定 | 等有 CSV 数据才能跑，但代码可以先写 |
 | S-14 | 阈值校准方案 | 影子模式判定标准 | 写清楚"多少误报率算合格" |
@@ -50,6 +49,7 @@
 | S-25 | MQTT 协议定义与编解码 | `docs/protocol.md` |
 | S-26 | 网络状态机与重连退避 | `lib/net/` |
 | S-13 | 音频素材：`tools/make_audio.py` 生成 a1–a4 + index.json | `firmware/tools/` |
+| S-10 | `tools/simulate_device.py` + `mqtt_lite.py` + `selftest.py`（27 项断言） | `tools/` |
 
 ---
 
@@ -64,3 +64,5 @@ S-04 ──▶ S-05 ──▶ S-07 低功耗
 ```
 
 `S-04 → S-05 → S-07` 是串行的，其余可以并行。
+
+**S-10 已完成，S-11（Node-RED 面板）现在可以开工** —— 用 `tools/simulate_device.py --scenario heartbeat` 造数据，面板对着真实的消息格式调。

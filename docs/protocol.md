@@ -230,3 +230,16 @@ DISARMED ←── 锁舌退出 ── ARMED ←── 锁舌闭合 ── DISAR
 | `lib/modem/` | AT 指令、URC 匹配 | — |
 
 `protocol` 层**不碰网络也不碰硬件**，所以能在 native 环境完整测试。见 `firmware/test/test_protocol/`。
+
+### 9.1 协议联调工具
+
+硬件没到货时，用 `tools/` 里的脚本按本协议收发：
+
+```bash
+python3 tools/simulate_device.py --dry-run --scenario alarm   # 只看 JSON
+python3 tools/mqtt_lite.py                                    # 起一个最小 broker
+python3 tools/simulate_device.py --scenario heartbeat         # 模拟设备
+python3 tools/selftest.py                                     # 27 项自检
+```
+
+`simulate_device.py` 的字段顺序、可选项、错误码与本节完全对齐，`selftest.py` 会断言这一点。**改协议时先改这两处，再改 `lib/protocol/`**。
