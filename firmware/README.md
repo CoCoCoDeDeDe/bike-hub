@@ -95,6 +95,8 @@ df = pd.read_csv("imu.csv", comment="#", names=["t","ax","ay","az"])
 ```
 firmware/
 ├── include/config.h      引脚、调度周期、Mock 开关
+├── mock/Arduino.h        native 测试用的 Arduino 桩
+├── test/test_guard/      状态机单元测试
 ├── src/main.cpp          初始化 + 调度 + 事件播报
 └── lib/
     ├── lis3dh/           加速度计
@@ -165,6 +167,32 @@ INIT ──锁上──▶ ARMED ──持续振动 1.5s──▶ ALARM
 ```
 
 只有 `lock` 能改变布防/撤防。**没有按钮、没有手机指令能直接撤防**——这条在代码结构上就定死了。
+
+## 单元测试
+
+状态机逻辑在电脑上就能跑，不需要板子：
+
+```bash
+pio test -e native
+```
+
+```
+test_unlocked_goes_disarmed                    [PASSED]
+test_locked_goes_armed                         [PASSED]
+test_sustained_motion_alarms                   [PASSED]
+test_alarm_cools_down_to_armed                 [PASSED]
+test_tamper_jumps_to_alarm_from_disarmed       [PASSED]
+...
+12 test cases: 12 succeeded
+```
+
+**怎么做到的**：`mock/Arduino.h` 提供最小桩，时间由 `mock_millis_ref()` 控制，测试里直接改它就能"快进"到冷却结束，不用真的等 10 秒。
+
+```cpp
+static void advance(uint32_t ms) { mock_millis_ref() += ms; }
+```
+
+新增状态机时，照着 `test/test_guard/` 的结构写用例即可。
 
 ## 目录约定
 
