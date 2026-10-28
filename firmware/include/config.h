@@ -1,0 +1,55 @@
+#pragma once
+
+/**
+ * 板级配置：引脚、采样参数、Mock 开关
+ *
+ * 一体机阶段硬件还没定型，所以锁 / 灯 / 电源都带 Mock 开关。
+ * 机械做好后把对应的开关改成 0，只改这一处。
+ */
+
+// ---------------------------------------------------------------- 编译开关
+// 1 = 用串口命令模拟，0 = 走真实 GPIO
+#define MOCK_LOCK   1
+#define MOCK_LIGHT  1
+#define MOCK_POWER  1
+
+// ---------------------------------------------------------------- I2C（LIS3DH）
+#define PIN_I2C_SDA     8
+#define PIN_I2C_SCL     9
+#define I2C_CLOCK_HZ    400000
+
+// ---------------------------------------------------------------- 锁
+#define PIN_LOCK_SENSE   4    // 锁舌霍尔：闭合 = LOW
+#define PIN_LOCK_MOTOR_A 5    // 电机 H 桥 A
+#define PIN_LOCK_MOTOR_B 6    // 电机 H 桥 B
+#define PIN_TAMPER       7    // 开盖检测：常闭回路，断开 = 被拆
+#define LOCK_MOTOR_MS    400  // 电机通电时长
+
+// ---------------------------------------------------------------- 车灯
+#define PIN_LIGHT_PWM    10
+#define PIN_LIGHT_ID     1    // ADC，读 ID 电阻判断灯是否在位
+#define LIGHT_ID_R_STD   10000
+#define LIGHT_ID_R_TAIL  22000
+
+// ---------------------------------------------------------------- 电源
+#define PIN_BATT_ADC     2
+#define BATT_DIVIDER     2.0f   // 100k / 100k 分压
+
+// ---------------------------------------------------------------- 调度周期
+#define IMU_SAMPLE_HZ    50
+#define IMU_SAMPLE_MS    (1000 / IMU_SAMPLE_HZ)
+#define GUARD_TICK_MS    100
+#define LOCK_TICK_MS     20
+#define LIGHT_TICK_MS    100
+#define POWER_TICK_MS    1000
+#define HEARTBEAT_MS     5000
+
+// ---------------------------------------------------------------- 判定阈值（待实测校准）
+#define MOTION_RMS_G          0.05f   // 超过算"在动"
+#define MOTION_HOLD_MS        1500    // 持续这么久才算事件
+#define ALARM_COOLDOWN_MS     10000   // 告警后静默，避免刷屏
+
+// ---------------------------------------------------------------- 预留
+// #define PIN_IMU_INT1    3     // LIS3DH INT1，硬件唤醒用
+// #define PIN_HALL_WHEEL  11    // 车轮霍尔
+// #define PIN_AMP_SD      12    // MAX98357A 使能

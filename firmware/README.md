@@ -90,6 +90,54 @@ df = pd.read_csv("imu.csv", comment="#", names=["t","ax","ay","az"])
 
 撬锁的冲击经常超过 2 g，±2 g 会削顶——波形顶部被切平，特征就毁了。±4 g 配 12 bit，灵敏度 2 mg/LSB，日常振动完全够用。
 
+## 模块结构
+
+```
+firmware/
+├── include/config.h      引脚、调度周期、Mock 开关
+├── src/main.cpp          初始化 + 调度 + 事件播报
+└── lib/
+    ├── lis3dh/           加速度计
+    ├── lock/             锁舌状态 + 电机 + 防拆
+    ├── light/            车灯 PWM + ID 识别
+    ├── guard/            防盗状态机
+    └── power/            电量
+```
+
+**规矩**：`main.cpp` 只做初始化和时间调度，业务判断全在 `lib/` 里。`guard` 消费 `lock` 的状态，`lock` 不反过来依赖 `guard`。
+
+## 串口命令
+
+| 命令 | 作用 |
+| --- | --- |
+| `lock` / `unlock` | 模拟锁舌闭合 / 退出（Mock 模式） |
+| `tamper` / `clear` | 模拟 / 清除防拆告警 |
+| `light off \| on \| alert` | 控制车灯 |
+| `stream on \| off` | 开关 50 Hz CSV 流 |
+| `status` | 打印锁态、布防、电量、车灯 |
+| `help` | 命令列表 |
+
+典型流程：
+
+```
+lock                    → [lock] UNLOCKED -> LOCKED
+                          [guard] DISARMED -> ARMED
+（晃一下板子）
+                          [guard] ARMED -> ALARM
+unlock                  → [lock] LOCKED -> UNLOCKED
+                          [guard] ALARM -> DISARMED
+```
+
+## 状态机边界
+
+```
+INIT ──锁上──▶ ARMED ──持续振动 1.5s──▶ ALARM
+  │             ▲                        │
+  └──未锁──▶ DISARMED ◀────开锁──────────┘
+```
+
+只有 `lock` 能改变布防/撤防。**没有按钮、没有手机指令能直接撤防**——这条在代码结构上就定死了。
+
 ## 目录约定
 
 ```
@@ -106,7 +154,11 @@ firmware/
 ## 还没做的
 
 - [x] IMU（LIS3DH）采样与 CSV 输出
+- [x] 锁模块（Mock，真实 GPIO 待机械就绪）
+- [x] 车灯接口（Mock，PWM 已实现）
+- [x] 防盗状态机（lock → guard）
 - [ ] 车轮霍尔计数
+- [ ] 喇叭播放与告警音
 - [ ] Air780EG 的 AT 通道与 GNSS 通道
 - [ ] I2S 音频播放
 - [ ] 低功耗调度
