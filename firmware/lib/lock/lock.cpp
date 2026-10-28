@@ -46,10 +46,23 @@ bool Lock::begin() {
 
 // ---------------------------------------------------------------- 状态
 
+void Lock::onEnter(LockState s) {
+    (void)s;   // 锁没有需要在这里做的副作用，电机动作在 requestXxx 里完成
+}
+
+void Lock::onExit(LockState s) {
+    (void)s;
+}
+
 void Lock::enter(LockState s) {
     if (state_ == s) return;
+
+    const LockState prev = state_;
+    onExit(prev);
     state_ = s;
-    // 状态变化由上层轮询后打印，这里不打印，避免重复刷屏
+    onEnter(s);
+
+    Serial.printf("[lock] %-9s -> %-9s\n", name(prev), name(s));
 }
 
 // ---------------------------------------------------------------- 命令

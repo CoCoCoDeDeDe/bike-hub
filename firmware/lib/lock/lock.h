@@ -42,6 +42,8 @@ public:
 
 private:
     void enter(LockState s);
+    void onEnter(LockState s);
+    void onExit(LockState s);
 
     LockState state_ = LockState::UNKNOWN;
     LockState pending_ = LockState::UNKNOWN;

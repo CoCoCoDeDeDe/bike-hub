@@ -70,9 +70,15 @@ static float compute_rms() {
 
 // ---------------------------------------------------------------- 状态缓存
 
-static LockState  g_last_lock  = LockState::UNKNOWN;
-static GuardState g_last_guard = GuardState::INIT;
-static bool       g_stream = false;
+static bool g_stream = false;
+
+// guard 状态变化时由它回调，main 只负责"把动作分发到执行器"
+static void on_guard_action(GuardState s) {
+    switch (s) {
+        case GuardState::ALARM: g_light.setMode(LightMode::ALERT); break;
+        default:                g_light.setMode(LightMode::OFF);   break;
+    }
+}
 
 // ---------------------------------------------------------------- 工具
 
@@ -232,26 +238,6 @@ static void tick_imu() {
     }
 }
 
-static void report_changes() {
-    if (g_lock.state() != g_last_lock) {
-        Serial.printf("[lock] %s -> %s\n",
-                      Lock::name(g_last_lock), Lock::name(g_lock.state()));
-        g_last_lock = g_lock.state();
-    }
-
-    if (g_guard.state() != g_last_guard) {
-        Serial.printf("[guard] %s -> %s  (lock=%s rms=%.3fg)\n",
-                      Guard::name(g_last_guard), Guard::name(g_guard.state()),
-                      Lock::name(g_lock.state()), g_rms);
-
-        switch (g_guard.state()) {
-            case GuardState::ALARM: g_light.setMode(LightMode::ALERT); break;
-            default:                g_light.setMode(LightMode::OFF);   break;
-        }
-        g_last_guard = g_guard.state();
-    }
-}
-
 // ---------------------------------------------------------------- 生命周期
 
 void setup() {
@@ -270,11 +256,11 @@ void setup() {
     g_light.begin();
     g_guard.begin();
 
+    g_guard.setActionHandler(on_guard_action);
+
     // 用当前锁态决定初始布防状态
-    g_last_lock = g_lock.state();
-    g_guard.tick(g_lock.state(), g_lock.tampered(), 0.0f);
-    g_last_guard = g_guard.state();
-    Serial.printf("[guard] 初始状态 %s\n", Guard::name(g_guard.state()));
+    g_guard.tick({ g_lock.state(), g_lock.tampered(), 0.0f });
+    Serial.printf("[guard] 当前状态 %s\n", Guard::name(g_guard.state()));
 
     Serial.println();
     print_help();
@@ -304,10 +290,8 @@ void loop() {
 
     if ((int32_t)(now - t_guard) >= 0) {
         t_guard = now + GUARD_TICK_MS;
-        g_guard.tick(g_lock.state(), g_lock.tampered(), g_rms);
+        g_guard.tick({ g_lock.state(), g_lock.tampered(), g_rms });
     }
-
-    report_changes();
 
     if ((int32_t)(now - t_beat) >= 0) {
         t_beat = now + HEARTBEAT_MS;

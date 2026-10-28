@@ -106,6 +106,34 @@ firmware/
 
 **规矩**：`main.cpp` 只做初始化和时间调度，业务判断全在 `lib/` 里。`guard` 消费 `lock` 的状态，`lock` 不反过来依赖 `guard`。
 
+## 状态机统一模式
+
+`lock` 和 `guard` 都遵循同一套写法，加新状态机时照抄：
+
+| 要素 | 约定 |
+| --- | --- |
+| 状态 | `enum class XxxState` |
+| 名称 | `static const char *name(XxxState)` |
+| 迁移 | `enter()`：判重 → `onExit` → 切换 → `onEnter` → 通知 → 打印 |
+| 钩子 | `onEnter/onExit` 只放本状态自己的副作用 |
+| 输入 | `struct XxxInput` + `tick(const XxxInput &)` |
+| 输出 | 通过 `setActionHandler` 回调，不直接依赖灯/喇叭 |
+
+**这样做的两个好处**：
+
+1. **迁移日志由模块自己打**，一定带上下文，不会漏
+2. **加字段只改结构体**，不动调用签名
+
+当前 `guard` 的迁移日志长这样：
+
+```
+[guard] DISARMED  -> ARMED     (lock=LOCKED tamper=0 rms=0.003)
+[guard] ARMED     -> ALARM     (lock=LOCKED tamper=0 rms=0.412)
+[guard] ALARM     -> DISARMED  (lock=UNLOCKED tamper=0 rms=0.001)
+```
+
+`main.cpp` 里已经没有状态判断，只有 `on_guard_action()` 一个分发函数。
+
 ## 串口命令
 
 | 命令 | 作用 |
