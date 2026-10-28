@@ -1,0 +1,153 @@
+# bike-hub Lovelace 面板
+#
+# 用法：打开仪表盘 → 右上角 ⋮ → 「编辑仪表盘」→ 左上角 ⋮ →「原始配置编辑器」，
+#      把这些内容合并到 views: 列表里。
+#
+# 没有 dashboard 的话，先在配置里建一个：
+#   lovelace:
+#     mode: storage
+#   （默认已有「概览」面板，直接把 views 追加进去也行）
+#
+# 实体名与 packages/bikehub.yaml 里的 object_id 对应。
+# 手机竖屏优先：地图占满宽度，其余卡片两列。
+
+title: BikeHub
+views:
+  - title: BikeHub
+    path: bikehub
+    icon: mdi:bike-fast
+    badges:
+      - entity: binary_sensor.bikehub_online
+      - entity: sensor.bikehub_batt
+      - entity: sensor.bikehub_rssi
+    cards:
+      # ---------------------------------------------------- 地图
+      - type: map
+        title: 最后位置
+        hours_to_show: 24
+        default_zoom: 16
+        entities:
+          - entity: device_tracker.bikehub_tracker
+            name: 自行车
+
+      # ---------------------------------------------------- 状态
+      - type: entities
+        title: 状态
+        state_color: true
+        entities:
+          - entity: sensor.bikehub_guard
+            name: 布防
+          - entity: sensor.bikehub_lock
+            name: 锁态
+          - entity: sensor.bikehub_alarm
+            name: 播放
+          - type: divider
+          - entity: sensor.bikehub_batt
+            name: 电量
+          - entity: sensor.bikehub_volt
+            name: 电压
+          - entity: sensor.bikehub_uptime
+            name: 运行时长
+          - entity: sensor.bikehub_gps_acc
+            name: 定位精度
+          - type: divider
+          - entity: sensor.bikehub_last_event
+            name: 最近事件
+          - entity: sensor.bikehub_fw
+            name: 固件
+
+      # ---------------------------------------------------- 控制
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: button
+            name: 上锁
+            icon: mdi:lock
+            icon_height: 40px
+            tap_action:
+              action: call-service
+              service: script.bikehub_lock
+            hold_action:
+              action: more-info
+          - type: button
+            name: 开锁
+            icon: mdi:lock-open-variant
+            icon_height: 40px
+            tap_action:
+              action: call-service
+              service: script.bikehub_unlock
+            confirmation:
+              text: 确定开锁？开锁即等同于撤防。
+          - type: button
+            name: 停止播放
+            icon: mdi:stop
+            icon_height: 40px
+            tap_action:
+              action: call-service
+              service: script.bikehub_stop
+          - type: button
+            name: 刷新状态
+            icon: mdi:refresh
+            icon_height: 40px
+            tap_action:
+              action: call-service
+              service: script.bikehub_status
+
+      # ---------------------------------------------------- 音频
+      - type: entities
+        title: 远程喊话
+        entities:
+          - entity: input_select.bikehub_sound
+            name: 音频
+          - entity: script.bikehub_play_selected
+            name: 播放选中的录音
+            secondary_info: last-triggered
+
+      # ---------------------------------------------------- 一键响
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: button
+            name: 警笛
+            icon: mdi:bullhorn
+            icon_height: 44px
+            tap_action:
+              action: call-service
+              service: input_select.select_option
+              target:
+                entity_id: input_select.bikehub_sound
+              data:
+                option: "1 | 警笛-标准"
+          - type: button
+            name: 急促警报
+            icon: mdi:alarm-light
+            icon_height: 44px
+            tap_action:
+              action: call-service
+              service: input_select.select_option
+              target:
+                entity_id: input_select.bikehub_sound
+              data:
+                option: "2 | 警笛-急促"
+
+      # ---------------------------------------------------- 趋势
+      - type: history-graph
+        title: 最近 24 小时
+        hours_to_show: 24
+        entities:
+          - entity: sensor.bikehub_batt
+            name: 电量
+          - entity: sensor.bikehub_volt
+            name: 电压
+
+      # ---------------------------------------------------- 事件历史
+      - type: logbook
+        title: 事件
+        hours_to_show: 72
+        entities:
+          - sensor.bikehub_last_event
+          - sensor.bikehub_lock
+          - sensor.bikehub_guard
+          - binary_sensor.bikehub_online

@@ -1,0 +1,352 @@
+# bike-hub 接入 Home Assistant
+#
+# 用法：把整个 deploy/homeassistant/ 下的内容拷进 HA 的 config/，
+#      然后把本文件里所有 7cdfa1 换成你的 devId（MAC 后 6 位小写十六进制）。
+#
+#   sed -i 's/7cdfa1/YOUR_DEV_ID/g' packages/bikehub.yaml
+#
+# configuration.yaml 里加一行，让 HA 加载这个包：
+#
+#   homeassistant:
+#     packages: !include_dir_named packages
+#
+# 协议见 docs/protocol.md。设备侧字段名不要在这里改——改了就对不上固件。
+#
+# 关于 object_id：name 是给人看的中文，object_id 决定 entity_id。
+# 不写 object_id 的话 HA 会拿中文名去 slugify，得到难以预料的结果，
+# 自动化里引用起来很痛苦。所以每个实体都显式给 object_id。
+
+# ------------------------------------------------------------------ 实体
+
+mqtt:
+  sensor:
+    # ---- 来自 state（retained，HA 重启后立刻就有值）----
+    - name: "BikeHub 电量"
+      object_id: bikehub_batt
+      unique_id: bikehub_batt
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.batt }}"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      icon: mdi:battery
+      device: &bikehub_dev
+        identifiers: ["bikehub_7cdfa1"]
+        name: "BikeHub"
+        manufacturer: "DIY"
+        model: "bike-hub 原型"
+
+    - name: "BikeHub 电压"
+      object_id: bikehub_volt
+      unique_id: bikehub_volt
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.volt }}"
+      unit_of_measurement: "V"
+      device_class: voltage
+      state_class: measurement
+      suggested_display_precision: 2
+      device: *bikehub_dev
+
+    - name: "BikeHub 布防"
+      object_id: bikehub_guard
+      unique_id: bikehub_guard
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.guard }}"
+      icon: mdi:shield-car
+      device: *bikehub_dev
+
+    - name: "BikeHub 锁态"
+      object_id: bikehub_lock
+      unique_id: bikehub_lock
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.lock }}"
+      icon: mdi:lock
+      device: *bikehub_dev
+
+    - name: "BikeHub 播放"
+      object_id: bikehub_alarm
+      unique_id: bikehub_alarm
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.alarm }}"
+      icon: mdi:bullhorn
+      device: *bikehub_dev
+
+    - name: "BikeHub 信号"
+      object_id: bikehub_rssi
+      unique_id: bikehub_rssi
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.rssi }}"
+      unit_of_measurement: "dBm"
+      device_class: signal_strength
+      state_class: measurement
+      availability_topic: "bikehub/7cdfa1/online"
+      availability_template: "{{ 'online' if value_json.online else 'offline' }}"
+      device: *bikehub_dev
+
+    - name: "BikeHub 运行时长"
+      object_id: bikehub_uptime
+      unique_id: bikehub_uptime
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.up }}"
+      unit_of_measurement: "s"
+      device_class: duration
+      state_class: total_increasing
+      entity_category: diagnostic
+      device: *bikehub_dev
+
+    - name: "BikeHub 固件"
+      object_id: bikehub_fw
+      unique_id: bikehub_fw
+      state_topic: "bikehub/7cdfa1/state"
+      value_template: "{{ value_json.fw }}"
+      icon: mdi:chip
+      entity_category: diagnostic
+      device: *bikehub_dev
+
+    # ---- 来自 evt（QoS1 不 retained，HA 重启后变 unknown 属正常）----
+    - name: "BikeHub 最近事件"
+      object_id: bikehub_last_event
+      unique_id: bikehub_last_event
+      state_topic: "bikehub/7cdfa1/evt"
+      value_template: "{{ value_json.t }}"
+      json_attributes_topic: "bikehub/7cdfa1/evt"
+      icon: mdi:history
+      device: *bikehub_dev
+
+    # ---- 来自 loc ----
+    - name: "BikeHub 定位精度"
+      object_id: bikehub_gps_acc
+      unique_id: bikehub_gps_acc
+      state_topic: "bikehub/7cdfa1/loc"
+      value_template: "{{ value_json.acc | default(0) }}"
+      unit_of_measurement: "m"
+      device_class: distance
+      state_class: measurement
+      entity_category: diagnostic
+      device: *bikehub_dev
+
+    - name: "BikeHub 速度"
+      object_id: bikehub_gps_spd
+      unique_id: bikehub_gps_spd
+      state_topic: "bikehub/7cdfa1/loc"
+      value_template: "{{ value_json.spd | default(0) }}"
+      unit_of_measurement: "km/h"
+      device_class: speed
+      state_class: measurement
+      device: *bikehub_dev
+
+  binary_sensor:
+    - name: "BikeHub 在线"
+      object_id: bikehub_online
+      unique_id: bikehub_online
+      state_topic: "bikehub/7cdfa1/online"
+      # 显式转成 ON/OFF：模板直接输出布尔值会得到 "True"/"False"，
+      # 和默认的 ON/OFF 对不上，这里绕开那个坑
+      value_template: "{{ 'ON' if value_json.online else 'OFF' }}"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      device: *bikehub_dev
+
+  # 地图卡片认 device_tracker，不认 sensor。
+  # 状态固定为 parked —— 设备不移动时用不上 home/not_home 语义，
+  # 地图靠属性里的经纬度画点。
+  device_tracker:
+    - name: "BikeHub 位置"
+      object_id: bikehub_tracker
+      unique_id: bikehub_tracker
+      state_topic: "bikehub/7cdfa1/loc"
+      value_template: "parked"
+      json_attributes_topic: "bikehub/7cdfa1/loc"
+      json_attributes_template: >-
+        {{ {"latitude": value_json.lat,
+            "longitude": value_json.lon,
+            "gps_accuracy": value_json.acc | default(10)} | tojson }}
+      source_type: gps
+      device: *bikehub_dev
+
+# ------------------------------------------------------------------ 输入
+
+input_select:
+  bikehub_sound:
+    name: 选择音频
+    icon: mdi:playlist-music
+    options:
+      - "1 | 警笛-标准"
+      - "2 | 警笛-急促"
+      - "3 | 脉冲报警"
+      - "4 | 提示音-寻车"
+      # 5–9 留给语音：录好后在这里加一行，并把 aN.wav 一起烧进 LittleFS
+
+# ------------------------------------------------------------------ 脚本
+#
+# cmd.id 用随机数：设备只把它回显在 ack 里，不参与逻辑，
+# 但固定 id 会让「同一命令重复执行」在日志里看不出来。
+
+script:
+  bikehub_play_selected:
+    alias: "播放选中的音频"
+    icon: mdi:play
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "bikehub/7cdfa1/cmd"
+          qos: 1
+          payload: >-
+            {"v":1,"id":{{ range(100, 65535) | random }},"cmd":"play",
+             "arg":{{ states("input_select.bikehub_sound")[0] | int }}}
+
+  bikehub_stop:
+    alias: "停止播放"
+    icon: mdi:stop
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "bikehub/7cdfa1/cmd"
+          qos: 1
+          payload: >-
+            {"v":1,"id":{{ range(100, 65535) | random }},"cmd":"stop"}
+
+  bikehub_lock:
+    alias: "上锁"
+    icon: mdi:lock
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "bikehub/7cdfa1/cmd"
+          qos: 1
+          payload: >-
+            {"v":1,"id":{{ range(100, 65535) | random }},"cmd":"lock"}
+
+  bikehub_unlock:
+    alias: "开锁"
+    icon: mdi:lock-open-variant
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "bikehub/7cdfa1/cmd"
+          qos: 1
+          payload: >-
+            {"v":1,"id":{{ range(100, 65535) | random }},"cmd":"unlock"}
+
+  bikehub_status:
+    alias: "刷新状态"
+    icon: mdi:refresh
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "bikehub/7cdfa1/cmd"
+          qos: 1
+          payload: >-
+            {"v":1,"id":{{ range(100, 65535) | random }},"cmd":"status"}
+
+# ------------------------------------------------------------------ 自动化
+#
+# notify.mobile_app_myphone 是占位符，换成你手机上实际的服务名：
+# 设置 → 设备与服务 → 实体 → 搜 notify，名字形如 notify.mobile_app_<手机名>
+
+automation:
+  # 告警：通知自带两个按钮，点哪个发哪条 cmd —— 通知本身就是遥控器
+  - alias: "BikeHub 告警推送"
+    id: bikehub_alarm_push
+    mode: queued
+    trigger:
+      - platform: mqtt
+        topic: "bikehub/7cdfa1/evt"
+    condition:
+      - condition: template
+        value_template: "{{ trigger.payload_json.t == 'alarm' }}"
+    action:
+      - service: notify.mobile_app_myphone
+        data:
+          title: "⚠ 车被动了"
+          message: >-
+            振动 {{ trigger.payload_json.rms }}g，
+            锁态 {{ trigger.payload_json.lock }}
+          data:
+            # 下面三个是 Android 专属，iOS 会忽略（不报错）
+            priority: high
+            ttl: 0
+            channel: alarm_stream
+            actions:
+              - action: "BIKEHUB_SIREN"
+                title: "放大警笛"
+              - action: "BIKEHUB_VOICE"
+                title: "语音威慑"
+
+  # 通知按钮 → 先选音轨，再播放
+  - alias: "BikeHub 通知按钮"
+    id: bikehub_notify_action
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+    condition:
+      - condition: template
+        value_template: >-
+          {{ trigger.event.data.action is defined and
+             trigger.event.data.action.startswith('BIKEHUB_') }}
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.event.data.action == 'BIKEHUB_SIREN' }}"
+            sequence:
+              - service: input_select.select_option
+                target:
+                  entity_id: input_select.bikehub_sound
+                data:
+                  option: "1 | 警笛-标准"
+              - delay: "00:00:01"        # 等 input_select 落地再播
+              - service: script.bikehub_play_selected
+
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.event.data.action == 'BIKEHUB_VOICE' }}"
+            sequence:
+              - service: input_select.select_option
+                target:
+                  entity_id: input_select.bikehub_sound
+                data:
+                  option: "2 | 警笛-急促"
+              - delay: "00:00:01"
+              - service: script.bikehub_play_selected
+
+  # 低电量
+  - alias: "BikeHub 低电量提醒"
+    id: bikehub_lowbat
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.bikehub_batt
+        below: 25
+    action:
+      - service: notify.mobile_app_myphone
+        data:
+          title: "BikeHub 电量低"
+          message: "剩余 {{ states('sensor.bikehub_batt') }}%，该充电了"
+
+  # 离线（设备掉线时 broker 代发遗嘱 → online=false）
+  - alias: "BikeHub 离线提醒"
+    id: bikehub_offline
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.bikehub_online
+        to: "off"
+        for: "00:10:00"
+    action:
+      - service: notify.mobile_app_myphone
+        data:
+          title: "BikeHub 掉线"
+          message: "已 10 分钟没有心跳，检查供电或信号"
+
+  # 上锁时同步告知布防状态，帮你确认「锁了就是布防了」
+  - alias: "BikeHub 上锁提示"
+    id: bikehub_locked_hint
+    trigger:
+      - platform: state
+        entity_id: sensor.bikehub_lock
+        to: "LOCKED"
+    action:
+      - service: notify.mobile_app_myphone
+        data:
+          title: "已上锁"
+          message: "布防状态：{{ states('sensor.bikehub_guard') }}"

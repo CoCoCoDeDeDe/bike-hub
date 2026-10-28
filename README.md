@@ -26,12 +26,13 @@ bike-hub/
 │   ├── lib/        模块：sensor / detect / audio / net / power
 │   └── data/       LittleFS：WAV 音频、index.json
 ├── tools/          开发期脚本（模拟设备、数据分析）
+├── deploy/         云端部署配置（Home Assistant 包与面板）
 ├── hardware/       OpenSCAD 参数化外壳
 ├── docs/           需求、方案、BOM
 └── data/           采集数据与录音素材（不入库）
 ```
 
-四套代码，按部署目标划分：固件跑在芯片上、面板跑在 Node-RED、脚本跑在电脑、外壳跑在 3D 软件。**第二曲线的码表是 `firmware/lib/` 里加一个模块，不是新工程。**
+四套代码，按部署目标划分：固件跑在芯片上、面板跑在 Home Assistant、脚本跑在电脑、外壳跑在 3D 软件。**第二曲线的码表是 `firmware/lib/` 里加一个模块，不是新工程。**
 
 ## 文档
 
@@ -42,6 +43,7 @@ bike-hub/
 | [**硬件任务清单**](docs/hardware-checklist.md) | **硬件工作的唯一入口**：采购、机械、电路、装配、验证、待确认项 |
 | [项目待办](docs/todo.md) | 等硬件的、不依赖硬件的、已完成的，以及依赖关系 |
 | [MQTT 协议](docs/protocol.md) | topic 结构、消息格式、命令白名单、安全约束、兼容策略 |
+| [**Home Assistant 接入**](deploy/homeassistant/README.md) | **云端面板配置**：实体、脚本、自动化、手机面板、云部署 |
 | [硬件采购清单](docs/bom.md) | 分批次 BOM、型号规格、参考价、下单避坑、到货验证顺序 |
 | [v0.1 商业化版本（归档）](docs/archive/requirements-v0.1-commercial.md) | 最初的商业产品视角，已被 v0.2 取代 |
 
