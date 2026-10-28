@@ -98,6 +98,7 @@ firmware/
 ├── mock/Arduino.h        native 测试用的 Arduino 桩
 ├── test/test_guard/      状态机单元测试
 ├── test/test_protocol/   消息编解码单元测试
+├── test/test_net/        网络状态机单元测试
 ├── src/main.cpp          初始化 + 调度 + 事件播报
 └── lib/
     ├── lis3dh/           加速度计
@@ -106,7 +107,8 @@ firmware/
     ├── guard/            防盗状态机
     ├── alarm/            喇叭播放
     ├── power/            电量
-    └── protocol/         MQTT 消息编解码（纯逻辑，可 native 测）
+    ├── protocol/         MQTT 消息编解码（纯逻辑）
+    └── net/              网络状态机与重连退避（纯逻辑）
 ```
 
 **规矩**：`main.cpp` 只做初始化和时间调度，业务判断全在 `lib/` 里。`guard` 消费 `lock` 的状态，`lock` 不反过来依赖 `guard`。
@@ -253,7 +255,24 @@ static void advance(uint32_t ms) { mock_millis_ref() += ms; }
 
 新增状态机时，照着 `test/test_guard/` 的结构写用例即可。
 
-`test_protocol` 验证 MQTT 消息的编解码，协议定义见 [docs/protocol.md](../docs/protocol.md)。这一层不碰网络也不碰硬件，所以能在电脑上完整测。
+`test_protocol` 验证 MQTT 消息的编解码，协议定义见 [docs/protocol.md](../docs/protocol.md)。
+`test_net` 验证连接状态机与退避——时间由输入注入，所以不用真的等 30 秒。
+
+这两层都不碰网络也不碰硬件，能在电脑上完整测。
+
+## 网络层
+
+`lib/net/` 只做决策，不碰模组、不碰 MQTT：
+
+```
+IDLE ──模组就绪──▶ WAIT_REG ──注网──▶ CONNECTING ──TCP成──▶ ONLINE
+                      ▲                    │                   │
+                      │                    │超时/失败           │掉线
+                      └────────────────────┴──── RETRY ◀────────┘
+                                            （2→4→8→16→30s）
+```
+
+上层每 tick 喂一次模组状态，读回当前状态决定动作。连上后 `failCount` 和退避清零。
 
 ## 目录约定
 
