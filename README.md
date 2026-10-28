@@ -38,7 +38,8 @@ bike-hub/
 | 文档 | 内容 |
 | --- | --- |
 | [需求整理与分析](docs/requirements.md) | 定位与能力地图、需求拆解、FR/NFR、设计权衡、风险、优先级 |
-| [概念原型实施方案](docs/prototype-plan.md) | 硬件选型与 BOM、电源坑、音频方案、软件架构、判定算法、里程碑、验收清单 |
+| [概念原型实施方案](docs/prototype-plan.md) | 选型理由、电源坑、音频方案、软件架构、判定算法、里程碑、验收方法 |
+| [**硬件任务清单**](docs/hardware-checklist.md) | **硬件工作的唯一入口**：采购、机械、电路、装配、验证、待确认项 |
 | [硬件采购清单](docs/bom.md) | 分批次 BOM、型号规格、参考价、下单避坑、到货验证顺序 |
 | [v0.1 商业化版本（归档）](docs/archive/requirements-v0.1-commercial.md) | 最初的商业产品视角，已被 v0.2 取代 |
 
